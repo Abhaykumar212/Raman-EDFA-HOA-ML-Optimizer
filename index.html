@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raman-EDFA Hybrid Optical Amplifier Optimizer</title>
+  
+  <!-- CSS Stylesheet Link -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- KaTeX CDN for TeX Math Formatting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  
+  <!-- ChartJS CDN Link -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- HEADER -->
+    <header>
+      <div>
+        <h1>
+          Raman-EDFA HOA ML Optimizer
+        </h1>
+        <p>
+          Steady-state physical simulation and multi-parameter machine learning optimization (using a Neural Network Surrogate & Gradient Ascent) 
+          for maximizing flat net gain. Based on <em>Singh & Kaler (2014)</em>, Journal of the Optical Society of Korea.
+        </p>
+      </div>
+      <div class="status-badge-wrap">
+        <span class="status-indicator" id="status-indicator"></span>
+        Status: <strong id="status-badge">READY</strong>
+      </div>
+    </header>
+
+    <!-- METRICS CARDS ROW -->
+    <div class="metrics-row">
+      <div class="metric-card">
+        <span class="metric-card-label">Mean Gain</span>
+        <div class="metric-card-val-row">
+          <span class="metric-card-val" id="m-gain">—</span>
+          <span class="metric-card-unit">dB</span>
+        </div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-card-label">Gain Flatness</span>
+        <div class="metric-card-val-row">
+          <span class="metric-card-val" id="m-flat">—</span>
+          <span class="metric-card-unit">dB var</span>
+        </div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-card-label">Noise Figure</span>
+        <div class="metric-card-val-row">
+          <span class="metric-card-val" id="m-nf">—</span>
+          <span class="metric-card-unit">dB avg</span>
+        </div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-card-label">Evaluations</span>
+        <div class="metric-card-val-row">
+          <span class="metric-card-val" id="m-evals">0</span>
+          <span class="metric-card-unit">calls</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTENT GRID -->
+    <div class="dashboard-grid">
+      
+      <!-- COLUMN LEFT: CONTROLS & PARAMS -->
+      <div class="column-left">
+        
+        <!-- Search Space Config Card -->
+        <div class="panel panel-glow-blue" style="margin-bottom: 20px;">
+          <h2>
+            Search Space Limits
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
+          </h2>
+          
+          <div class="control-group">
+            <div class="control-label-row">
+              <span class="control-label">Raman Length (km)</span>
+              <span><span class="control-value" id="sv-rl-min">50</span> – <span class="control-value" id="sv-rl-max">180</span></span>
+            </div>
+            <div class="slider-double-row">
+              <input type="range" id="s-rl-min" min="10" max="100" step="1" value="50">
+              <span class="slider-double-sep">to</span>
+              <input type="range" id="s-rl-max" min="100" max="200" step="1" value="180">
+            </div>
+          </div>
+          
+          <div class="control-group">
+            <div class="control-label-row">
+              <span class="control-label">EDFA Length (m)</span>
+              <span><span class="control-value" id="sv-el-min">5</span> – <span class="control-value" id="sv-el-max">30</span></span>
+            </div>
+            <div class="slider-double-row">
+              <input type="range" id="s-el-min" min="1" max="15" step="1" value="5">
+              <span class="slider-double-sep">to</span>
+              <input type="range" id="s-el-max" min="15" max="35" step="1" value="30">
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row">
+              <span class="control-label">Raman Pump (mW)</span>
+              <span><span class="control-value" id="sv-rp-min">50</span> – <span class="control-value" id="sv-rp-max">450</span></span>
+            </div>
+            <div class="slider-double-row">
+              <input type="range" id="s-rp-min" min="10" max="150" step="5" value="50">
+              <span class="slider-double-sep">to</span>
+              <input type="range" id="s-rp-max" min="150" max="500" step="5" value="450">
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row">
+              <span class="control-label">EDFA Pump (mW)</span>
+              <span><span class="control-value" id="sv-ep-min">50</span> – <span class="control-value" id="sv-ep-max">450</span></span>
+            </div>
+            <div class="slider-double-row">
+              <input type="range" id="s-ep-min" min="10" max="150" step="5" value="50">
+              <span class="slider-double-sep">to</span>
+              <input type="range" id="s-ep-max" min="150" max="500" step="5" value="450">
+            </div>
+          </div>
+
+          <div class="control-group last">
+            <label class="control-label" style="display: block; margin-bottom: 6px; font-size: 12px;">Wavelength Profile Band</label>
+            <select id="band-select">
+              <option value="l-band" selected>L-band (1624–1634 nm - 50 Ch @ 0.2 nm)</option>
+              <option value="c-band">C-band (1530–1565 nm - 44 Ch @ 0.8 nm)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Algorithm Parameters Card -->
+        <div class="panel">
+          <h2>
+            MLP Neural Network Parameters
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path></svg>
+          </h2>
+
+          <div id="ml-params">
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Training Size (Samples)</span>
+                <span class="control-value" id="mv-samples">400</span>
+              </div>
+              <input type="range" id="ml-samples" min="100" max="1200" step="50" value="400">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Epochs Limit</span>
+                <span class="control-value" id="mv-epochs">150</span>
+              </div>
+              <input type="range" id="ml-epochs" min="50" max="400" step="10" value="150">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Learning Rate</span>
+                <span class="control-value" id="mv-lr">0.005</span>
+              </div>
+              <input type="range" id="ml-lr" min="0.001" max="0.03" step="0.001" value="0.005">
+            </div>
+            <div class="control-group last">
+              <div class="control-label-row">
+                <span class="control-label">Grad Ascent Steps</span>
+                <span class="control-value" id="mv-steps">100</span>
+              </div>
+              <input type="range" id="ml-steps" min="20" max="250" step="5" value="100">
+            </div>
+          </div>
+
+          <!-- Run trigger -->
+          <button class="trigger-btn" id="run-btn" onclick="runOptimization()">
+            <svg style="width: 14px; height: 14px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Trigger ML Optimization
+          </button>
+
+          <!-- Progress Panel -->
+          <div class="progress-panel">
+            <div class="progress-header">
+              <span id="prog-text">Ready to run</span>
+              <span id="prog-pct">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="prog-fill"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COLUMN MID: VISUALIZATIONS & SPECTRUM CHART -->
+      <div class="column-mid">
+        
+        <!-- VISUALIZERS CANVAS PANEL GRID -->
+        <div class="visualizers-grid">
+          
+          <!-- 2D Contour Canvas -->
+          <div class="panel canvas-panel">
+            <h2>
+              2D Fitness Landscape
+              <span style="font-size: 9px; font-weight: normal; color: var(--text-muted); text-transform: none">Lr vs Le</span>
+            </h2>
+            <div class="canvas-wrapper">
+              <canvas id="contourCanvas" width="300" height="200"></canvas>
+            </div>
+            <div class="visualizer-labels">
+              <span>Raman Length (Lr) ➔</span>
+              <span>EDFA Length (Le) ➔</span>
+            </div>
+          </div>
+
+          <!-- Neural Network Architecture Canvas -->
+          <div class="panel canvas-panel">
+            <h2>
+              NN Surrogate Structure
+              <span style="font-size: 9px; font-weight: normal; color: var(--text-muted); text-transform: none">4x16x16x50 Layers</span>
+            </h2>
+            <div class="canvas-wrapper">
+              <canvas id="nnCanvas" width="300" height="200"></canvas>
+            </div>
+            <div class="visualizer-labels">
+              <span>Inputs (4) ➔ Hidden Layers (16, 16)</span>
+              <span>➔ Outputs (50 Ch)</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- GAIN SPECTRUM CHART -->
+        <div class="panel" style="margin-bottom: 20px;">
+          <div class="chart-title-area">
+            <h2>Gain Wavelength Spectrum</h2>
+            <div class="custom-chart-legend">
+              <span class="legend-dot"><span class="legend-dot-line" style="border-top: 1.5px dashed #ef4444; height: 0; width: 14px"></span> Ideal Target (20 dB)</span>
+              <span class="legend-dot"><span class="legend-dot-line" style="background: #8b5cf6"></span> ML Actual</span>
+              <span class="legend-dot"><span class="legend-dot-line" style="border-top: 2px dashed #a78bfa; height: 0; width: 14px"></span> ML Predicted</span>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="gainChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COLUMN RIGHT: OPTIMAL PARAMS, MATH & SYSTEM CONSOLE -->
+      <div class="column-right">
+        
+        <!-- Optimal Parameters Results Card -->
+        <div class="panel panel-glow-green" style="margin-bottom: 20px;">
+          <h2>
+            Best Configurations Found
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l5-5z" clip-rule="evenodd"></path></svg>
+          </h2>
+          <div id="best-params">
+            <div style="color: var(--text-dark); font-size: 12px; text-align: center; padding: 15px 0;">
+              Execute an optimization to review optimal parameter configurations.
+            </div>
+          </div>
+        </div>
+
+        <!-- Math Formulas LaTeX Card -->
+        <div class="panel" style="margin-bottom: 20px;">
+          <h2>
+            Paper Physical Models
+            <svg fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-2.308-1.533 1 1 0 00-1.185.394 1 1 0 00.395 1.18c.559.3 1.085.674 1.564 1.111A1 1 0 005.16 16H5a1 1 0 00.772 1.623 8.987 8.987 0 005.474-1.754 1 1 0 00-1.296-1.524 6.988 6.988 0 01-3.95 1.255V11.26l1.242.533a1 1 0 00.787 0l7-3a1 1 0 00.518-.508l-6.868 2.943a1 1 0 01-.788 0L3.31 9.397z"></path></svg>
+          </h2>
+          
+          <div class="math-card">
+            <div style="font-weight: 500; font-size: 10px; color: var(--text-muted); margin-bottom: 4px;">Raman Gain Equation</div>
+            <div id="eq-raman">Loading equation...</div>
+          </div>
+          
+          <div class="math-card">
+            <div style="font-weight: 500; font-size: 10px; color: var(--text-muted); margin-bottom: 4px;">EDFA Steady-State Metastable fraction</div>
+            <div id="eq-edfa">Loading equation...</div>
+          </div>
+
+          <div class="math-card">
+            <div style="font-weight: 500; font-size: 10px; color: var(--text-muted); margin-bottom: 4px;">Net Cascaded Gain</div>
+            <div id="eq-net">Loading equation...</div>
+          </div>
+
+          <div class="math-card">
+            <div style="font-weight: 500; font-size: 10px; color: var(--text-muted); margin-bottom: 4px;">Joint Multi-Objective Fitness</div>
+            <div id="eq-fit">Loading equation...</div>
+          </div>
+        </div>
+
+        <!-- NN loss training plot -->
+        <div class="panel" id="nn-loss-container" style="margin-bottom: 20px;">
+          <h2>MLP Training Loss (MSE)</h2>
+          <div class="loss-chart-container">
+            <canvas id="nnLossChart"></canvas>
+          </div>
+        </div>
+
+        <!-- System Logs Console -->
+        <div class="panel">
+          <h2>
+            System Console Logs
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm12.707 3.293a1 1 0 00-1.414-1.414L11 9.586 9.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+          </h2>
+          <div class="log-console" id="log-box">Console loading...</div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Script Files loading in dependency order -->
+  <script src="physics.js"></script>
+  <script src="nn.js"></script>
+  <script src="visualizer.js"></script>
+  <script src="app.js"></script>
+  
+  <!-- LaTeX initial trigger render -->
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      // Ensure KaTeX is loaded and render equations
+      setTimeout(() => {
+        if (typeof katex !== 'undefined') {
+          katex.render("P_{\\text{out}} = P_{\\text{in}} \\exp \\left( \\frac{g_R P_P (1 - e^{-\\alpha_p L_R})}{a_p \\alpha_p} - \\alpha_s L_R \\right)", document.getElementById('eq-raman'));
+          katex.render("n_2 = \\frac{N_2}{N_t} = \\frac{R_p + R_s}{R_p + R_s + R_{se} + 1/\\tau}", document.getElementById('eq-edfa'));
+          katex.render("G_{\\text{net}} = G_{\\text{Raman}} \\cdot \\alpha_{\\text{coupler}} \\cdot G_{\\text{EDFA}}", document.getElementById('eq-net'));
+          katex.render("f(x) = \\overline{G}(x) - w_1 \\cdot \\Delta G(x) - w_2 \\cdot \\sigma_{\\text{smooth}}", document.getElementById('eq-fit'));
+        }
+      }, 500);
+    });
+  </script>
+</body>
+</html>
