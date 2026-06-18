@@ -55,7 +55,13 @@ function initializeSliders() {
     { s: 's-rp-min', l: 'sv-rp-min' }, { s: 's-rp-max', l: 'sv-rp-max' },
     { s: 's-ep-min', l: 'sv-ep-min' }, { s: 's-ep-max', l: 'sv-ep-max' },
     { s: 'ml-samples', l: 'mv-samples' }, { s: 'ml-epochs', l: 'mv-epochs' },
-    { s: 'ml-lr', l: 'mv-lr' }, { s: 'ml-steps', l: 'mv-steps' }
+    { s: 'ml-lr', l: 'mv-lr' }, { s: 'ml-steps', l: 'mv-steps' },
+    { s: 'ga-pop', l: 'ga-v-pop' }, { s: 'ga-gens', l: 'ga-v-gens' },
+    { s: 'ga-cross', l: 'ga-v-cross' }, { s: 'ga-mut', l: 'ga-v-mut' },
+    { s: 'pso-swarm', l: 'pso-v-swarm' }, { s: 'pso-iters', l: 'pso-v-iters' },
+    { s: 'pso-c1', l: 'pso-v-c1' }, { s: 'pso-c2', l: 'pso-v-c2' },
+    { s: 'rl-episodes', l: 'rl-v-episodes' }, { s: 'rl-steps', l: 'rl-v-steps' },
+    { s: 'rl-epsilon', l: 'rl-v-epsilon' }, { s: 'rl-alpha', l: 'rl-v-alpha' }
   ];
 
   binds.forEach(b => {
@@ -80,6 +86,7 @@ function initializeSliders() {
       selectedBand = e.target.value;
       writeLog(`Wavelength band profile changed to ${selectedBand.toUpperCase()}`, 'system');
       triggerLandscapeUpdate();
+      initializeCharts(); // Re-initialize charts to draw target line for new band
     });
   }
 }
@@ -156,13 +163,21 @@ function initializeCharts() {
   const ctxGain = document.getElementById('gainChart');
   if (gainChart) gainChart.destroy();
   
+  const channels = selectedBand === 'l-band' ? 50 : 44;
+  const spacing = selectedBand === 'l-band' ? 0.2 : 0.8;
+  const wls = generateWavelengthGrid(selectedBand, channels, spacing);
+  
+  const labels = wls.map(wl => wl.toFixed(1));
+  const targetData = new Array(channels).fill(20);
+  
   gainChart = new Chart(ctxGain, {
     type: 'line',
     data: {
+      labels: labels,
       datasets: [
         {
           label: 'Ideal Target (20 dB)',
-          data: [],
+          data: targetData,
           borderColor: '#ef4444',
           borderWidth: 1.5,
           borderDash: [5, 5],
@@ -178,7 +193,6 @@ function initializeCharts() {
       plugins: { legend: { display: false } },
       scales: {
         x: {
-          type: 'linear',
           title: { display: true, text: 'Wavelength (nm)', color: '#9CA3AF' },
           grid: { color: 'rgba(255,255,255,0.05)' },
           ticks: { color: '#9CA3AF' }
@@ -186,9 +200,7 @@ function initializeCharts() {
         y: {
           title: { display: true, text: 'Net Gain (dB)', color: '#9CA3AF' },
           grid: { color: 'rgba(255,255,255,0.05)' },
-          ticks: { color: '#9CA3AF' },
-          min: 0,
-          max: 40
+          ticks: { color: '#9CA3AF' }
         }
       }
     }
@@ -206,17 +218,47 @@ function updateChartDataset(chart, datasetLabel, dataPoints, strokeColor, isDash
       label: datasetLabel,
       data: [],
       borderColor: strokeColor,
-      backgroundColor: 'transparent',
+      backgroundColor: strokeColor + '18', // subtle fill with 10% opacity
       borderWidth: 2,
-      pointRadius: 0,
+      pointRadius: [],
+      pointBackgroundColor: strokeColor,
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointHoverRadius: 5,
       tension: 0.3,
       borderDash: isDash ? [4, 4] : [],
-      fill: false
+      fill: isDash ? false : true
     };
     chart.data.datasets.push(dataset);
   }
   
   dataset.data = dataPoints;
+  
+  // Show visible dots at start and end points, hide middle ones
+  if (dataPoints && dataPoints.length > 0) {
+    const radii = new Array(dataPoints.length).fill(0);
+    radii[0] = 4;                        // start dot
+    radii[dataPoints.length - 1] = 4;    // end dot
+    dataset.pointRadius = radii;
+  }
+  
+  // Auto-scale Y-axis to fit all visible data with padding
+  const allValues = [];
+  for (const ds of chart.data.datasets) {
+    if (ds.data && ds.data.length > 0) {
+      for (const v of ds.data) {
+        if (typeof v === 'number' && isFinite(v)) allValues.push(v);
+      }
+    }
+  }
+  if (allValues.length > 0) {
+    const dataMin = Math.min(...allValues);
+    const dataMax = Math.max(...allValues);
+    const padding = Math.max(2, (dataMax - dataMin) * 0.15);
+    chart.options.scales.y.min = Math.floor(dataMin - padding);
+    chart.options.scales.y.max = Math.ceil(dataMax + padding);
+  }
+  
   chart.update('none');
 }
 
@@ -489,8 +531,8 @@ async function triggerML(ranges) {
       updateProgress(50 + Math.round((s / steps) * 50), `ML: Input Optimization ${s}/${steps}`);
       
       // Update real-time spectrum plots
-      updateChartDataset(gainChart, 'ML Actual', wls.map((w, idx) => ({ x: w, y: realGains[idx] })), '#8b5cf6');
-      updateChartDataset(gainChart, 'ML Predicted', wls.map((w, idx) => ({ x: w, y: predGains[idx] })), '#a78bfa', true);
+      updateChartDataset(gainChart, 'ML Actual', realGains, '#8b5cf6');
+      updateChartDataset(gainChart, 'ML Predicted', predGains, '#a78bfa', true);
       
       // Draw search trace path on the contour canvas
       if (landscapeVis) {
@@ -536,11 +578,281 @@ async function triggerML(ranges) {
 }
 
 /**
+ * Toggles visibility of algorithm parameter panels dynamically.
+ */
+function switchAlgorithm() {
+  const selected = document.getElementById('algo-select').value;
+  const panels = {
+    'nn-ga': 'nn-params-panel',
+    'genetic': 'ga-params-panel',
+    'pso': 'pso-params-panel',
+    'qlearning': 'rl-params-panel'
+  };
+  
+  const btnTexts = {
+    'nn-ga': 'Trigger ML Optimization',
+    'genetic': 'Trigger GA Optimization',
+    'pso': 'Trigger PSO Optimization',
+    'qlearning': 'Trigger RL Optimization'
+  };
+
+  Object.keys(panels).forEach(key => {
+    const el = document.getElementById(panels[key]);
+    if (el) el.style.display = (key === selected) ? 'block' : 'none';
+  });
+
+  const btnText = document.getElementById('btn-text');
+  if (btnText) btnText.textContent = btnTexts[selected];
+  
+  writeLog(`Switched optimizer model profile to ${selected.toUpperCase()}`, 'system');
+}
+
+/**
+ * Updates a row in the Global Benchmark Comparison Table.
+ */
+function updateBenchmarkRow(algoKey, best, evals) {
+  const prefix = algoKey; // 'nn', 'ga', 'pso', 'rl'
+  const meanGain = best.gains.reduce((sum, g) => sum + g, 0) / best.gains.length;
+  const flatness = Math.max(...best.gains) - Math.min(...best.gains);
+  const nf = calculateNoiseFigure(best.rl, best.el, best.ep, selectedBand);
+
+  const gainEl = document.getElementById(`${prefix}-gain`);
+  const flatEl = document.getElementById(`${prefix}-flat`);
+  const nfEl = document.getElementById(`${prefix}-nf`);
+  const rlEl = document.getElementById(`${prefix}-rl`);
+  const elEl = document.getElementById(`${prefix}-el`);
+  const callsEl = document.getElementById(`${prefix}-calls`);
+  const statusEl = document.getElementById(`${prefix}-status`);
+
+  if (gainEl) gainEl.textContent = `${meanGain.toFixed(2)} dB`;
+  if (flatEl) flatEl.textContent = `±${(flatness / 2).toFixed(2)} dB`;
+  if (nfEl) nfEl.textContent = `${nf.toFixed(2)} dB`;
+  if (rlEl) rlEl.textContent = `${best.rl.toFixed(2)} km`;
+  if (elEl) elEl.textContent = `${best.el.toFixed(2)} m`;
+  if (callsEl) callsEl.textContent = evals;
+  if (statusEl) {
+    statusEl.textContent = 'Completed';
+    statusEl.style.color = 'var(--accent-green)';
+  }
+}
+
+/**
+ * Runs the Genetic Algorithm search loop.
+ */
+async function triggerGA(ranges) {
+  writeLog('Starting Genetic Algorithm global optimization loop...', 'ga');
+  const popSize = parseInt(document.getElementById('ga-pop').value);
+  const generations = parseInt(document.getElementById('ga-gens').value);
+  const cross = parseFloat(document.getElementById('ga-cross').value);
+  const mut = parseFloat(document.getElementById('ga-mut').value);
+
+  const channels = selectedBand === 'l-band' ? 50 : 44;
+  const spacing = selectedBand === 'l-band' ? 0.2 : 0.8;
+  const wls = generateWavelengthGrid(selectedBand, channels, spacing);
+
+  let evaluations = 0;
+
+  const evalWrapper = (ind) => {
+    evaluations++;
+    const gains = wls.map(wl => calculateNetGain(wl, ind[0], ind[1], ind[2], ind[3], selectedBand));
+    const fit = calculateFitness(gains);
+    return {
+      score: fit.score,
+      gains: gains,
+      meanGain: fit.meanGain,
+      flatness: fit.flatness,
+      smoothness: fit.smoothness
+    };
+  };
+
+  const ga = new GeneticAlgorithm(ranges, popSize, cross, mut, evalWrapper);
+  ga.init();
+  
+  writeLog(`Population initialized with ${popSize} chromosomes.`, 'ga');
+
+  for (let g = 1; g <= generations; g++) {
+    const res = ga.step();
+    
+    if (g % 5 === 0 || g === generations) {
+      updateProgress(Math.round((g / generations) * 100), `GA: Generation ${g}/${generations}`);
+      updateChartDataset(gainChart, 'ML Actual', res.best.gains, '#10B981');
+      
+      if (landscapeVis) {
+        landscapeVis.drawParticles(res.population, { chromosome: res.best.chromosome }, '#10B981');
+      }
+
+      const nf = calculateNoiseFigure(res.best.realParams[0], res.best.realParams[1], res.best.realParams[3], selectedBand);
+      const fitnessVal = calculateFitness(res.best.gains);
+      refreshMetrics(fitnessVal.meanGain, fitnessVal.flatness, nf, evaluations);
+
+      if (g % 20 === 0 || g === generations) {
+        writeLog(`Gen ${g}/${generations} - Best Score: ${res.best.score.toFixed(4)} | Flatness: ±${(fitnessVal.flatness/2).toFixed(2)} dB`, 'ga');
+      }
+      
+      await sleepMs(30);
+    }
+  }
+
+  const best = {
+    chromosome: ga.bestIndividual.realParams,
+    score: ga.bestIndividual.score,
+    gains: ga.bestIndividual.gains,
+    rl: ga.bestIndividual.realParams[0],
+    el: ga.bestIndividual.realParams[1],
+    rp: ga.bestIndividual.realParams[2],
+    ep: ga.bestIndividual.realParams[3]
+  };
+
+  return { best, evals: evaluations };
+}
+
+/**
+ * Runs the Particle Swarm Optimization search loop.
+ */
+async function triggerPSO(ranges) {
+  writeLog('Starting Particle Swarm Optimization global search...', 'pso');
+  const swarmSize = parseInt(document.getElementById('pso-swarm').value);
+  const iterations = parseInt(document.getElementById('pso-iters').value);
+  const c1 = parseFloat(document.getElementById('pso-c1').value);
+  const c2 = parseFloat(document.getElementById('pso-c2').value);
+
+  const channels = selectedBand === 'l-band' ? 50 : 44;
+  const spacing = selectedBand === 'l-band' ? 0.2 : 0.8;
+  const wls = generateWavelengthGrid(selectedBand, channels, spacing);
+
+  let evaluations = 0;
+
+  const evalWrapper = (ind) => {
+    evaluations++;
+    const gains = wls.map(wl => calculateNetGain(wl, ind[0], ind[1], ind[2], ind[3], selectedBand));
+    const fit = calculateFitness(gains);
+    return {
+      score: fit.score,
+      gains: gains,
+      meanGain: fit.meanGain,
+      flatness: fit.flatness,
+      smoothness: fit.smoothness
+    };
+  };
+
+  const pso = new ParticleSwarmOptimization(ranges, swarmSize, iterations, c1, c2, evalWrapper);
+  pso.init();
+  
+  writeLog(`PSO initialized with ${swarmSize} particles.`, 'pso');
+
+  for (let it = 1; it <= iterations; it++) {
+    const res = pso.step();
+    
+    if (it % 5 === 0 || it === iterations) {
+      updateProgress(Math.round((it / iterations) * 100), `PSO: Iteration ${it}/${iterations}`);
+      updateChartDataset(gainChart, 'ML Actual', res.best.gains, '#3b82f6');
+      
+      if (landscapeVis) {
+        landscapeVis.drawParticles(res.particles, { chromosome: res.best.chromosome }, '#3b82f6');
+      }
+
+      const nf = calculateNoiseFigure(res.best.realParams[0], res.best.realParams[1], res.best.realParams[3], selectedBand);
+      const fitnessVal = calculateFitness(res.best.gains);
+      refreshMetrics(fitnessVal.meanGain, fitnessVal.flatness, nf, evaluations);
+
+      if (it % 20 === 0 || it === iterations) {
+        writeLog(`Iteration ${it}/${iterations} - Global Best Score: ${res.best.score.toFixed(4)} | Flatness: ±${(fitnessVal.flatness/2).toFixed(2)} dB`, 'pso');
+      }
+      
+      await sleepMs(30);
+    }
+  }
+
+  const best = {
+    chromosome: pso.gBestPosition.map((val, idx) => ranges[idx][0] + val * (ranges[idx][1] - ranges[idx][0])),
+    score: pso.gBestScore,
+    gains: pso.gBestGains,
+    rl: pso.gBestPosition[0] * (ranges[0][1] - ranges[0][0]) + ranges[0][0],
+    el: pso.gBestPosition[1] * (ranges[1][1] - ranges[1][0]) + ranges[1][0],
+    rp: pso.gBestPosition[2] * (ranges[2][1] - ranges[2][0]) + ranges[2][0],
+    ep: pso.gBestPosition[3] * (ranges[3][1] - ranges[3][0]) + ranges[3][0]
+  };
+
+  return { best, evals: evaluations };
+}
+
+/**
+ * Runs the Q-Learning reinforcement learning optimizer agent.
+ */
+async function triggerQLearning(ranges) {
+  writeLog('Starting Reinforcement Learning (Q-Learning) optimizer agent...', 'rl');
+  const episodes = parseInt(document.getElementById('rl-episodes').value);
+  const steps = parseInt(document.getElementById('rl-steps').value);
+  const alpha = parseFloat(document.getElementById('rl-alpha').value);
+  const epsilon = parseFloat(document.getElementById('rl-epsilon').value);
+
+  const channels = selectedBand === 'l-band' ? 50 : 44;
+  const spacing = selectedBand === 'l-band' ? 0.2 : 0.8;
+  const wls = generateWavelengthGrid(selectedBand, channels, spacing);
+
+  let evaluations = 0;
+
+  const evalWrapper = (ind) => {
+    evaluations++;
+    const gains = wls.map(wl => calculateNetGain(wl, ind[0], ind[1], ind[2], ind[3], selectedBand));
+    const fit = calculateFitness(gains);
+    return {
+      score: fit.score,
+      gains: gains,
+      meanGain: fit.meanGain,
+      flatness: fit.flatness,
+      smoothness: fit.smoothness
+    };
+  };
+
+  const rlAgent = new QLearningOptimizer(ranges, episodes, steps, alpha, 0.85, epsilon, evalWrapper);
+  rlAgent.init();
+
+  for (let ep = 1; ep <= episodes; ep++) {
+    const res = rlAgent.step();
+    
+    if (ep % 10 === 0 || ep === episodes) {
+      updateProgress(Math.round((ep / episodes) * 100), `RL: Episode ${ep}/${episodes}`);
+      updateChartDataset(gainChart, 'ML Actual', res.best.gains, '#ef4444');
+      
+      if (landscapeVis) {
+        landscapeVis.drawParticles(res.trail, { chromosome: res.best.chromosome }, '#ef4444');
+      }
+
+      const realParams = res.best.realParams;
+      const nf = calculateNoiseFigure(realParams[0], realParams[1], realParams[3], selectedBand);
+      const fitnessVal = calculateFitness(res.best.gains);
+      refreshMetrics(fitnessVal.meanGain, fitnessVal.flatness, nf, evaluations);
+
+      if (ep % 40 === 0 || ep === episodes) {
+        writeLog(`Episode ${ep}/${episodes} - Best Q-Score: ${res.best.score.toFixed(4)} | Flatness: ±${(fitnessVal.flatness/2).toFixed(2)} dB`, 'rl');
+      }
+      
+      await sleepMs(20);
+    }
+  }
+
+  const best = {
+    chromosome: rlAgent.bestPosition.map((val, idx) => ranges[idx][0] + val * (ranges[idx][1] - ranges[idx][0])),
+    score: rlAgent.bestScore,
+    gains: rlAgent.bestGains,
+    rl: rlAgent.bestPosition[0] * (ranges[0][1] - ranges[0][0]) + ranges[0][0],
+    el: rlAgent.bestPosition[1] * (ranges[1][1] - ranges[1][0]) + ranges[1][0],
+    rp: rlAgent.bestPosition[2] * (ranges[2][1] - ranges[2][0]) + ranges[2][0],
+    ep: rlAgent.bestPosition[3] * (ranges[3][1] - ranges[3][0]) + ranges[3][0]
+  };
+
+  return { best, evals: evaluations };
+}
+
+/**
  * Main Trigger Orchestrator.
  */
 async function runOptimization() {
   if (running) return;
   running = true;
+  
+  const selected = document.getElementById('algo-select').value;
   
   // UI States
   const btn = document.getElementById('run-btn');
@@ -549,18 +861,46 @@ async function runOptimization() {
   
   if (btn) btn.disabled = true;
   if (badge) badge.textContent = 'RUNNING';
-  if (indicator) indicator.className = 'status-indicator running-ml';
+  
+  // Custom class animations
+  if (indicator) {
+    if (selected === 'nn-ga') indicator.className = 'status-indicator running-ml';
+    else if (selected === 'genetic') indicator.className = 'status-indicator running-ga';
+    else if (selected === 'pso') indicator.className = 'status-indicator running-pso';
+    else if (selected === 'qlearning') indicator.className = 'status-indicator running-rl';
+  }
   
   document.getElementById('log-box').innerHTML = '';
   document.getElementById('best-params').innerHTML = '<div style="color: var(--text-dark); text-align: center; padding: 20px;">Optimization execution in progress...</div>';
   
   const ranges = getParameterRanges();
+  let result = null;
   
   try {
-    const result = await triggerML(ranges);
-    
-    if (result) {
-      renderBestParameters(result.best, 'ML Surrogate NN & Input Gradient Ascent');
+    if (selected === 'nn-ga') {
+      result = await triggerML(ranges);
+      if (result) {
+        renderBestParameters(result.best, 'ML Surrogate NN & Input Gradient');
+        updateBenchmarkRow('nn', result.best, result.evals);
+      }
+    } else if (selected === 'genetic') {
+      result = await triggerGA(ranges);
+      if (result) {
+        renderBestParameters(result.best, 'Genetic Algorithm (GA)');
+        updateBenchmarkRow('ga', result.best, result.evals);
+      }
+    } else if (selected === 'pso') {
+      result = await triggerPSO(ranges);
+      if (result) {
+        renderBestParameters(result.best, 'Particle Swarm (PSO)');
+        updateBenchmarkRow('pso', result.best, result.evals);
+      }
+    } else if (selected === 'qlearning') {
+      result = await triggerQLearning(ranges);
+      if (result) {
+        renderBestParameters(result.best, 'Q-Learning RL Agent');
+        updateBenchmarkRow('rl', result.best, result.evals);
+      }
     }
     
     if (badge) badge.textContent = 'DONE';

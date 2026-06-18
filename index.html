@@ -140,11 +140,21 @@
         <!-- Algorithm Parameters Card -->
         <div class="panel">
           <h2>
-            MLP Neural Network Parameters
+            Select Optimization Algorithm
             <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path></svg>
           </h2>
 
-          <div id="ml-params">
+          <div class="control-group" style="margin-bottom: 20px;">
+            <select id="algo-select" onchange="switchAlgorithm()">
+              <option value="nn-ga" selected>MLP NN & Input Gradient Ascent</option>
+              <option value="genetic">Genetic Algorithm (GA)</option>
+              <option value="pso">Particle Swarm Optimization (PSO)</option>
+              <option value="qlearning">Q-Learning RL Agent</option>
+            </select>
+          </div>
+
+          <!-- Neural Network parameters -->
+          <div id="nn-params-panel">
             <div class="control-group">
               <div class="control-label-row">
                 <span class="control-label">Training Size (Samples)</span>
@@ -175,10 +185,106 @@
             </div>
           </div>
 
+          <!-- GA parameters -->
+          <div id="ga-params-panel" style="display: none;">
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Population Size</span>
+                <span class="control-value" id="ga-v-pop">50</span>
+              </div>
+              <input type="range" id="ga-pop" min="20" max="150" step="5" value="50">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Generations Limit</span>
+                <span class="control-value" id="ga-v-gens">80</span>
+              </div>
+              <input type="range" id="ga-gens" min="20" max="200" step="5" value="80">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Crossover Rate</span>
+                <span class="control-value" id="ga-v-cross">0.80</span>
+              </div>
+              <input type="range" id="ga-cross" min="0.1" max="1.0" step="0.05" value="0.80">
+            </div>
+            <div class="control-group last">
+              <div class="control-label-row">
+                <span class="control-label">Mutation Rate</span>
+                <span class="control-value" id="ga-v-mut">0.15</span>
+              </div>
+              <input type="range" id="ga-mut" min="0.01" max="0.5" step="0.01" value="0.15">
+            </div>
+          </div>
+
+          <!-- PSO parameters -->
+          <div id="pso-params-panel" style="display: none;">
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Swarm Size</span>
+                <span class="control-value" id="pso-v-swarm">40</span>
+              </div>
+              <input type="range" id="pso-swarm" min="15" max="100" step="5" value="40">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Iterations Limit</span>
+                <span class="control-value" id="pso-v-iters">60</span>
+              </div>
+              <input type="range" id="pso-iters" min="20" max="200" step="5" value="60">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Cognitive Force (c1)</span>
+                <span class="control-value" id="pso-v-c1">1.8</span>
+              </div>
+              <input type="range" id="pso-c1" min="0.5" max="3.0" step="0.1" value="1.8">
+            </div>
+            <div class="control-group last">
+              <div class="control-label-row">
+                <span class="control-label">Social Force (c2)</span>
+                <span class="control-value" id="pso-v-c2">1.8</span>
+              </div>
+              <input type="range" id="pso-c2" min="0.5" max="3.0" step="0.1" value="1.8">
+            </div>
+          </div>
+
+          <!-- RL parameters -->
+          <div id="rl-params-panel" style="display: none;">
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Episodes</span>
+                <span class="control-value" id="rl-v-episodes">150</span>
+              </div>
+              <input type="range" id="rl-episodes" min="50" max="400" step="10" value="150">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Steps per Episode</span>
+                <span class="control-value" id="rl-v-steps">15</span>
+              </div>
+              <input type="range" id="rl-steps" min="5" max="40" step="1" value="15">
+            </div>
+            <div class="control-group">
+              <div class="control-label-row">
+                <span class="control-label">Exploration (epsilon)</span>
+                <span class="control-value" id="rl-v-epsilon">0.25</span>
+              </div>
+              <input type="range" id="rl-epsilon" min="0.0" max="0.8" step="0.05" value="0.25">
+            </div>
+            <div class="control-group last">
+              <div class="control-label-row">
+                <span class="control-label">Learning Rate (alpha)</span>
+                <span class="control-value" id="rl-v-alpha">0.15</span>
+              </div>
+              <input type="range" id="rl-alpha" min="0.01" max="0.5" step="0.01" value="0.15">
+            </div>
+          </div>
+
           <!-- Run trigger -->
           <button class="trigger-btn" id="run-btn" onclick="runOptimization()">
             <svg style="width: 14px; height: 14px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            Trigger ML Optimization
+            <span id="btn-text">Trigger ML Optimization</span>
           </button>
 
           <!-- Progress Panel -->
@@ -314,11 +420,79 @@
       </div>
 
     </div>
+
+    <!-- COMPARISON TABLE PANEL -->
+    <div class="panel" style="margin-top: 20px;">
+      <h2>
+        Global Optimizer Benchmarks
+        <svg fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path></svg>
+      </h2>
+      <div class="comparison-table-wrapper">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Optimizer Algorithm</th>
+              <th>Optimal Net Gain</th>
+              <th>Gain Flatness (Δ)</th>
+              <th>Noise Figure (NF)</th>
+              <th>Optimal Raman L</th>
+              <th>Optimal EDFA L</th>
+              <th>Sim / NN Calls</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="row-nn">
+              <td class="algo-name" style="color: var(--accent-purple)">MLP NN & Input Gradient</td>
+              <td id="nn-gain">—</td>
+              <td id="nn-flat">—</td>
+              <td id="nn-nf">—</td>
+              <td id="nn-rl">—</td>
+              <td id="nn-el">—</td>
+              <td id="nn-calls">—</td>
+              <td><span class="status-badge" id="nn-status" style="color: var(--text-dark)">Not Run</span></td>
+            </tr>
+            <tr id="row-ga">
+              <td class="algo-name" style="color: var(--accent-green)">Genetic Algorithm (GA)</td>
+              <td id="ga-gain">—</td>
+              <td id="ga-flat">—</td>
+              <td id="ga-nf">—</td>
+              <td id="ga-rl">—</td>
+              <td id="ga-el">—</td>
+              <td id="ga-calls">—</td>
+              <td><span class="status-badge" id="ga-status" style="color: var(--text-dark)">Not Run</span></td>
+            </tr>
+            <tr id="row-pso">
+              <td class="algo-name" style="color: var(--accent-blue)">Particle Swarm (PSO)</td>
+              <td id="pso-gain">—</td>
+              <td id="pso-flat">—</td>
+              <td id="pso-nf">—</td>
+              <td id="pso-rl">—</td>
+              <td id="pso-el">—</td>
+              <td id="pso-calls">—</td>
+              <td><span class="status-badge" id="pso-status" style="color: var(--text-dark)">Not Run</span></td>
+            </tr>
+            <tr id="row-rl">
+              <td class="algo-name" style="color: var(--accent-crimson)">Q-Learning RL Agent</td>
+              <td id="rl-gain">—</td>
+              <td id="rl-flat">—</td>
+              <td id="rl-nf">—</td>
+              <td id="rl-rl">—</td>
+              <td id="rl-el">—</td>
+              <td id="rl-calls">—</td>
+              <td><span class="status-badge" id="rl-status" style="color: var(--text-dark)">Not Run</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
   <!-- Script Files loading in dependency order -->
   <script src="physics.js"></script>
   <script src="nn.js"></script>
+  <script src="optimizers.js"></script>
   <script src="visualizer.js"></script>
   <script src="app.js"></script>
   
